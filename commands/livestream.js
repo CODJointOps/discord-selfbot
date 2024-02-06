@@ -5,14 +5,19 @@ module.exports = {
   description: 'Starts or stops a live stream in a voice channel with a provided video link.',
   async execute(message, args, deleteTimeout) {
     if (args[0] === 'stop') {
-      const voiceState = message.guild.members.me.voice;
-      if (voiceState.channel) {
-        voiceState.disconnect();
-        return message.channel.send('Livestream stopped.')
-          .then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
+      if (message.client.voiceConnection) {
+        message.client.voiceConnection.disconnect();
+        message.client.voiceConnection = null;
+
+        if (message.client.currentPlayer) {
+          message.client.currentPlayer.stop();
+          message.client.currentPlayer.removeAllListeners('end');
+          message.client.currentPlayer = null;
+        }
+
+        return message.channel.send('Livestream stopped.').then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
       } else {
-        return message.channel.send('No active livestream to stop.')
-          .then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
+        return message.channel.send('No active livestream to stop.').then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
       }
     }
 
