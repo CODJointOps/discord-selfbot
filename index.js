@@ -1,7 +1,10 @@
 require('dotenv').config();
 const { Client } = require('discord.js-selfbot-v13');
+const { DiscordStreamClient } = require('discord-stream-client');
 const client = new Client();
 const fs = require('fs');
+
+client.streamClient = new DiscordStreamClient(client);
 
 const PREFIX = process.env.PREFIX || '.';
 const MESSAGE_DELETE_TIMEOUT = 10000
