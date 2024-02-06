@@ -47,23 +47,22 @@ module.exports = {
 
       player.on('error', err => console.error(err));
 
-      player.on('end', () => {
-        player.play({
+      const playStream = () => {
+        player.play(videoLink, {
           kbpsVideo: 7000,
           fps: 60,
           hwaccel: true,
           kbpsAudio: 128,
           volume: 1,
         });
+      };
+
+      player.on('finish', () => {
+        console.log('Media ended, replaying...');
+	playStream();
       });
 
-      player.play({
-        kbpsVideo: 7000,
-        fps: 60,
-        hwaccel: true,
-        kbpsAudio: 128,
-        volume: 1,
-      });
+     playStream(); 
 
       message.channel.send('Livestream started with the provided video link.')
         .then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
