@@ -5,7 +5,7 @@ module.exports = {
   description: 'Starts or stops a live stream in a voice channel with a provided video link.',
   async execute(message, args, deleteTimeout) {
     if (args[0] === 'stop') {
-      const voiceState = message.guild.me.voice;
+      const voiceState = message.guild.members.me.voice;
       if (voiceState.channel) {
         voiceState.disconnect();
         return message.channel.send('Livestream stopped.')
@@ -28,6 +28,12 @@ module.exports = {
     if (!channel) {
       return message.channel.send('Channel not found.')
         .then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
+    }
+
+    const voiceState = message.guild.members.me.voice;
+    if (voiceState.channel) {
+    	console.log('Already in a voice channel, leaving...');
+  	await voiceState.disconnect();
     }
 
     try {
@@ -59,10 +65,10 @@ module.exports = {
 
       player.on('finish', () => {
         console.log('Media ended, replaying...');
-	playStream();
+        playStream();
       });
 
-     playStream(); 
+      playStream(); 
 
       message.channel.send('Livestream started with the provided video link.')
         .then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
