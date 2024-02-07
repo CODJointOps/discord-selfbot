@@ -1,6 +1,6 @@
 ## Description
 
-`discord-selfbot` is a simple selfbot for discord using [discord.js-selfbot-v13](https://github.com/aiko-chan-ai/discord.js-selfbot-v13/issues/293).
+`discord-selfbot` is a simple selfbot for discord using [discord.js-selfbot-v13](https://github.com/aiko-chan-ai/discord.js-selfbot-v13).
 
 ## Disclaimer
 
