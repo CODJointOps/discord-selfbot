@@ -29,7 +29,11 @@ client.on('messageCreate', async message => {
 
   if (!client.commands.has(commandName)) return;
 
-  message.delete();
+  const deleteDelay = 2000;
+
+  setTimeout(() => {
+    message.delete().catch(console.error);
+  }, deleteDelay);
 
   try {
     await client.commands.get(commandName).execute(message, args, MESSAGE_DELETE_TIMEOUT);
@@ -41,6 +45,5 @@ client.on('messageCreate', async message => {
       });
   }
 });
-
 
 client.login(process.env.DISCORD_TOKEN);
