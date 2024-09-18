@@ -63,7 +63,7 @@ module.exports = {
     const getRandomDelay = () => Math.floor(Math.random() * (5000 - 2000 + 1)) + 2000;
 
     message.client.reactListener = async (msg) => {
-      if (message.client.targetReactUserIds.includes(msg.author.id)) {
+      if (message.client.targetReactUserIds && message.client.targetReactUserIds.includes(msg.author.id)) {
         for (const emoji of emojis) {
           try {
             const delay = getRandomDelay();
