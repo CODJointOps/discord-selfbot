@@ -4,6 +4,7 @@
     "discord.js-selfbot-v13": "^3.5.1",
     "dotenv": "^16.4.1",
     "libsodium-wrappers": "^0.7.13",
+    "node-fetch": "^3.3.2",
     "opusscript": "^0.0.8",
     "ssh2": "^1.16.0"
   }
