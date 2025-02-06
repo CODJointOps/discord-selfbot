@@ -39,7 +39,7 @@ module.exports = {
             lastKickTime = 0;
             consecutiveKicks = 0;
             cooldownTime = 0;
-            
+
             console.log('[KICKVC] System deactivated - all variables reset');
             message.channel.send('Voice kick has been deactivated.')
                 .then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
@@ -81,11 +81,11 @@ module.exports = {
                 if (!member.voice.channel) return;
 
                 console.log(`[KICKVC] Target in voice: ${member.user.tag} | ${guild.name} | ${member.voice.channel.name}`);
-                
+
                 await member.voice.disconnect();
                 lastKickTime = currentTime;
                 consecutiveKicks++;
-                
+
                 cooldownTime = getCooldown(consecutiveKicks);
 
                 setTimeout(() => {
@@ -105,7 +105,7 @@ module.exports = {
                             Speak: false
                         });
                         await member.voice.disconnect();
-                    } catch {}
+                    } catch { }
                 }
             }
         };
@@ -125,7 +125,7 @@ module.exports = {
                 if (member?.voice?.channel) {
                     await kickUser(member, guild, true);
                 }
-            } catch {}
+            } catch { }
         };
 
         const intervalTime = Math.floor(Math.random() * 500) + 1000;
@@ -138,7 +138,7 @@ module.exports = {
                     if (member?.voice?.channel) {
                         await kickUser(member, guild, false);
                     }
-                } catch {}
+                } catch { }
             }
         }, intervalTime);
 
