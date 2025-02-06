@@ -1,10 +1,6 @@
 module.exports = {
   name: 'react',
-  description: `Automatically react with specified emojis to multiple users’ messages, or stop reacting.\n
-  Usage:
-  .react <userID1,userID2,...> <emoji1> <emoji2> ... - React to messages from multiple users with specified emojis. 
-  Example: \`.react 12345,67890 :smile: :thumbsup:\`
-  .react stop - Stop reacting to users' messages.`,
+  description: `Automatically react with specified emojis to multiple users’ messages, or stop reacting.`,
   async execute(message, args, deleteTimeout) {
     if (args.length === 0) {
       if (message.client.targetReactUserIds && message.client.reactEmojis) {

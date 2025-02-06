@@ -1,10 +1,6 @@
 module.exports = {
     name: 'reply',
-    description: `Automatically reply with a specified message to multiple users’ messages, or stop replying.\n
-    Usage:
-    .reply <userID1,userID2,...> <message> - Automatically reply to messages from multiple users with the specified message.
-    Example: \`.reply 12345,67890 Hello there!\`
-    .reply stop - Stop replying to users' messages.`,
+    description: `Automatically reply with a specified message to multiple users’ messages, or stop replying.`,
     async execute(message, args, deleteTimeout) {
       if (args.length === 0) {
         if (message.client.targetReplyUserIds && message.client.replyMessage) {
