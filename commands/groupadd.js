@@ -4,7 +4,7 @@ let channelToWatch = null;
 let lastAddTimes = new Map();
 
 const getRandomDelay = () => {
-    return Math.floor(Math.random() * 150) + 50;
+    return Math.floor(Math.random() * 200) + 150;
 };
 
 module.exports = {
