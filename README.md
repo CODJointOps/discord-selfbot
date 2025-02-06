@@ -9,8 +9,9 @@ Open your terminal and run:
 ```bash
 git clone https://git.deadzone.lol/Wizzard/discord-selfbot/
 cd discord-selfbot
-npm install
 ```
+Run start.sh / start.bat
+
 ## 2. Get your token
 Open the file `tokengrab.js` in a text editor.
 
