@@ -15,7 +15,7 @@ for (const file of commandFiles) {
 }
 
 client.on('ready', () => {
-  console.log(`Logged in as ${client.user.tag}!`);
+  console.log(`Logged in as ${client.user.tag}! (DZ Loves you 2k25).`);
 });
 
 client.on('messageCreate', async message => {
