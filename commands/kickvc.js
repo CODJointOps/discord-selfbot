@@ -1,4 +1,4 @@
-let targetUserId = null;
+let targetUserIds = [];
 let isKickActive = false;
 let voiceStateHandler = null;
 let lastKickTime = 0;
@@ -24,14 +24,13 @@ const getCooldown = (kicks) => {
     else if (kicks <= 5) cooldown = 500;
     else if (kicks <= 10) cooldown = 1000;
     else cooldown = 2500;
-
     console.log(`[KICKVC] New cooldown calculated for ${kicks} kicks: ${cooldown}ms`);
     return cooldown;
 };
 
 module.exports = {
     name: 'kickvc',
-    description: 'Automatically kicks a specified user from voice channels.',
+    description: 'Automatically kicks specified users from voice channels.',
     async execute(message, args, deleteTimeout) {
         if (args[0]?.toLowerCase() === 'stop') {
             if (voiceStateHandler) {
@@ -43,29 +42,25 @@ module.exports = {
                 checkInterval = null;
             }
             isKickActive = false;
-            targetUserId = null;
+            targetUserIds = [];
             lastKickTime = 0;
             consecutiveKicks = 0;
             cooldownTime = 0;
-
             console.log('[KICKVC] System deactivated - all variables reset');
             message.channel.send('Voice kick has been deactivated.')
                 .then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
             return;
         }
-
-        const userId = args[0];
-        if (!userId || !/^\d{17,19}$/.test(userId)) {
-            console.log('[KICKVC] Invalid user ID provided');
-            message.channel.send('Please provide a valid user ID.')
+        const userIds = args.filter(arg => /^\d{17,19}$/.test(arg));
+        if (!userIds.length) {
+            console.log('[KICKVC] Invalid user IDs provided');
+            message.channel.send('Please provide at least one valid user ID.')
                 .then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
             return;
         }
-
-        targetUserId = userId;
+        targetUserIds = userIds;
         isKickActive = true;
-        console.log(`[KICKVC] System activated - Targeting user ID: ${userId}`);
-
+        console.log(`[KICKVC] System activated - Targeting user IDs: ${targetUserIds.join(', ')}`);
         if (voiceStateHandler) {
             message.client.removeListener('voiceStateUpdate', voiceStateHandler);
             console.log('[KICKVC] Removed old voice state handler');
@@ -74,54 +69,40 @@ module.exports = {
             clearInterval(checkInterval);
             console.log('[KICKVC] Cleared old check interval');
         }
-
         const kickUser = async (member, guild, fromEvent = false) => {
             if (!isKickActive) return;
-
             const currentTime = Date.now();
             const timeSinceLastKick = currentTime - lastKickTime;
-
             if (timeSinceLastKick < cooldownTime) {
                 console.log(`[KICKVC] On cooldown - ${cooldownTime - timeSinceLastKick}ms remaining`);
                 return;
             }
-
             try {
-                const delay = fromEvent ? getRandomDelay() : getRandomCheckDelay();
-                console.log(`[KICKVC] Waiting ${delay}ms before kick attempt...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-
-                if (!member.voice.channel) {
-                    console.log('[KICKVC] Target no longer in voice after delay');
+                const selfMember = await guild.members.fetch(member.client.user.id);
+                if (!selfMember.permissions.has("ADMINISTRATOR")) {
+                    console.log(`[KICKVC] No admin permissions in ${guild.name}, skipping`);
                     return;
                 }
-
-                console.log(`[KICKVC] Target detected in voice: ${member.user.tag} | Server: ${guild.name} | Channel: ${member.voice.channel.name}`);
-
+                const delay = fromEvent ? getRandomDelay() : getRandomCheckDelay();
+                console.log(`[KICKVC] Admin check passed in ${guild.name}, waiting ${delay}ms before kick...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                if (!member.voice.channel) return;
+                console.log(`[KICKVC] Target in voice: ${member.user.tag} | ${guild.name} | ${member.voice.channel.name}`);
                 await member.voice.disconnect();
                 lastKickTime = currentTime;
                 consecutiveKicks++;
-
-                const oldCooldown = cooldownTime;
                 cooldownTime = getCooldown(consecutiveKicks);
-
-                console.log(`[KICKVC] Kick successful - Consecutive kicks: ${consecutiveKicks} | New cooldown: ${cooldownTime}ms (was ${oldCooldown}ms)`);
-
                 setTimeout(() => {
                     if (consecutiveKicks > 0) {
-                        const oldKicks = consecutiveKicks;
-                        const oldCd = cooldownTime;
                         consecutiveKicks--;
                         cooldownTime = getCooldown(consecutiveKicks);
-                        console.log(`[KICKVC] Decay timer - Kicks reduced: ${oldKicks} -> ${consecutiveKicks} | Cooldown: ${oldCd}ms -> ${cooldownTime}ms`);
                     }
                 }, 15000);
-
             } catch (error) {
-                console.log('[KICKVC] Primary disconnect failed, trying alternate methods');
+                console.log(`[KICKVC] Error kicking in ${guild.name}:`, error);
                 try {
                     await member.voice.setChannel(null);
-                    console.log('[KICKVC] Alternate method 1 successful (setChannel null)');
+                    console.log('[KICKVC] Succeeded with alternate method (setChannel null)');
                 } catch {
                     try {
                         await member.voice.channel.permissionOverwrites.create(member, {
@@ -129,28 +110,23 @@ module.exports = {
                             Speak: false
                         });
                         await member.voice.disconnect();
-                        console.log('[KICKVC] Alternate method 2 successful (permissions + disconnect)');
+                        console.log('[KICKVC] Succeeded with permissions override');
                     } catch {
-                        console.log('[KICKVC] All disconnection methods failed');
+                        console.log('[KICKVC] All disconnect methods failed');
                     }
                 }
             }
         };
-
         voiceStateHandler = async (oldState, newState) => {
-            if (!isKickActive || !targetUserId) return;
-
-            const isTargetUser = newState?.member?.id === targetUserId || oldState?.member?.id === targetUserId;
-            if (!isTargetUser) return;
-
+            if (!isKickActive || targetUserIds.length === 0) return;
+            const id = newState?.member?.id || oldState?.member?.id;
+            if (!targetUserIds.includes(id)) return;
             const voiceState = newState?.channelId ? newState : oldState;
             if (!voiceState?.channel) return;
-
             console.log('[KICKVC] Voice state update detected for target');
-
             try {
                 const guild = voiceState.guild;
-                const member = await guild.members.fetch(targetUserId).catch(() => null);
+                const member = await guild.members.fetch(id).catch(() => null);
                 if (member?.voice?.channel) {
                     await kickUser(member, guild, true);
                 }
@@ -158,43 +134,42 @@ module.exports = {
                 console.log('[KICKVC] Error in voice state handler:', error);
             }
         };
-
         const intervalTime = Math.floor(Math.random() * 500) + 1000;
         console.log(`[KICKVC] Setting up interval check every ${intervalTime}ms`);
-
         checkInterval = setInterval(async () => {
             if (!isKickActive) return;
-
             for (const guild of message.client.guilds.cache.values()) {
-                try {
-                    const member = await guild.members.fetch(targetUserId).catch(() => null);
-                    if (member?.voice?.channel) {
-                        await kickUser(member, guild, false);
-                    }
-                } catch { }
+                for (const id of targetUserIds) {
+                    try {
+                        const member = await guild.members.fetch(id).catch(() => null);
+                        if (member?.voice?.channel) {
+                            await kickUser(member, guild, false);
+                        }
+                    } catch { }
+                }
             }
         }, intervalTime);
-
         message.client.on('voiceStateUpdate', voiceStateHandler);
         console.log('[KICKVC] New voice state handler and check interval registered');
-
         try {
-            const user = await message.client.users.fetch(userId);
-            console.log(`[KICKVC] Successfully fetched target user: ${user.tag}`);
-            message.channel.send(`Now automatically kicking ${user.tag} (${userId}) from voice channels.`)
+            const users = await Promise.all(targetUserIds.map(id => message.client.users.fetch(id).catch(() => null)));
+            const userTags = users.filter(u => u).map(u => `${u.tag} (${u.id})`);
+            console.log(`[KICKVC] Successfully fetched target users: ${userTags.join(', ')}`);
+            message.channel.send(`Now automatically kicking: ${userTags.join(', ')} from voice channels.`)
                 .then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
-
             console.log('[KICKVC] Performing initial guild check');
             message.client.guilds.cache.forEach(async (guild) => {
-                const member = await guild.members.fetch(userId).catch(() => null);
-                if (member?.voice?.channel) {
-                    console.log(`[KICKVC] Target found in voice during initial check - Server: ${guild.name}`);
-                    await kickUser(member, guild, true);
+                for (const id of targetUserIds) {
+                    const member = await guild.members.fetch(id).catch(() => null);
+                    if (member?.voice?.channel) {
+                        console.log(`[KICKVC] Target found in voice during initial check - Server: ${guild.name}`);
+                        await kickUser(member, guild, true);
+                    }
                 }
             });
         } catch (error) {
             console.log('[KICKVC] Could not fetch user information:', error);
-            message.channel.send(`Now automatically kicking user ID ${userId} from voice channels.`)
+            message.channel.send(`Now automatically kicking user IDs: ${targetUserIds.join(', ')} from voice channels.`)
                 .then(msg => setTimeout(() => msg.delete().catch(console.error), deleteTimeout));
         }
     },
