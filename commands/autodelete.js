@@ -6,8 +6,8 @@ let ignoredMessages = new Set();
 let isFirstDeletion = true;
 
 const DELETION_DELAY = 5 * 60 * 1000;
-const MIN_DELETE_INTERVAL = 1500;
-const MAX_DELETE_INTERVAL = 3000;
+const MIN_DELETE_INTERVAL = 2500;
+const MAX_DELETE_INTERVAL = 3500;
 
 const getRandomInterval = () => {
     return Math.floor(Math.random() * (MAX_DELETE_INTERVAL - MIN_DELETE_INTERVAL)) + MIN_DELETE_INTERVAL;
@@ -20,12 +20,23 @@ const processDeleteQueue = async () => {
         const messageToDelete = deleteQueue.shift();
         if (!messageToDelete) return;
 
+        const deleteDelay = Math.floor(Math.random() * 100) + 50;
+        await new Promise(resolve => setTimeout(resolve, deleteDelay));
+        console.log(`[AUTODELETE] Waited ${deleteDelay}ms before processing`);
+
         if (isFirstDeletion || Math.random() < 0.2) {
             console.log(`[AUTODELETE] Checking message ${messageToDelete.id} existence${isFirstDeletion ? ' (first deletion)' : ''}`);
             const exists = await messageToDelete.fetch().catch(() => null);
             if (!exists) {
                 console.log(`[AUTODELETE] Message ${messageToDelete.id} no longer exists, skipping`);
                 isFirstDeletion = false;
+                if (deleteQueue.length > 0 && isProcessingQueue) {
+                    const nextInterval = getRandomInterval();
+                    console.log(`[AUTODELETE] Next deletion in ${nextInterval}ms | Queue size: ${deleteQueue.length}`);
+                    setTimeout(processDeleteQueue, nextInterval);
+                } else {
+                    isProcessingQueue = false;
+                }
                 return;
             }
         }
@@ -33,7 +44,7 @@ const processDeleteQueue = async () => {
         await messageToDelete.delete().catch(() => {
             console.log(`[AUTODELETE] Couldn't delete message ${messageToDelete.id}`);
         });
-        
+
         console.log(`[AUTODELETE] Processed message ${messageToDelete.id}`);
         isFirstDeletion = false;
 
@@ -59,7 +70,7 @@ const startQueueProcessing = () => {
 
 const handleNewMessage = (message) => {
     if (!isAutoDeleteActive || message.author.id !== message.client.user.id) return;
-    
+
     if (ignoredMessages.has(message.id)) {
         console.log(`[AUTODELETE] Skipping ignored message: ${message.id}`);
         return;
@@ -92,20 +103,20 @@ module.exports = {
 
         if (args[0]?.toLowerCase() === 'stop') {
             isAutoDeleteActive = false;
-            
+
             for (const [messageId, timer] of messageTimers) {
                 clearTimeout(timer);
                 console.log(`[AUTODELETE] Cleared timer for message: ${messageId}`);
             }
-            
+
             messageTimers.clear();
             deleteQueue = [];
             isProcessingQueue = false;
             isFirstDeletion = true;
-            
+
             console.log('[AUTODELETE] System deactivated - All timers cleared');
             message.channel.send('Auto-delete has been deactivated.')
-                .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+                .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
             return;
         }
 
@@ -118,10 +129,10 @@ module.exports = {
             message.client.on('messageCreate', handleNewMessage);
 
             message.channel.send('Auto-delete activated. Each message will be deleted after exactly 5 minutes.')
-                .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+                .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
         } else {
             message.channel.send('Auto-delete is already active.')
-                .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+                .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
         }
     },
 };
