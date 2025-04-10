@@ -1,7 +1,9 @@
+const { sendCommandResponse } = require('../utils/messageUtils');
+
 module.exports = {
   name: 'help',
   description: 'List all of my commands or info about a specific command.',
-  execute(message, args, deleteTimeout) {
+  async execute(message, args, deleteTimeout) {
     let reply = '```';
     reply += 'Here are the available commands:\n\n';
 
@@ -12,9 +14,7 @@ module.exports = {
 
     reply += '```';
 
-    message.channel.send(reply).then(sentMessage => {
-      setTimeout(() => sentMessage.delete().catch(console.error), deleteTimeout);
-    });
+    await sendCommandResponse(message, reply, deleteTimeout, false);
   },
 };
 

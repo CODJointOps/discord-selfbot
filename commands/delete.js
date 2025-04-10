@@ -2,6 +2,7 @@ let isDeleting = false;
 let cancelDelete = false;
 let deletedMessages = new Set();
 const CACHE_CLEANUP_INTERVAL = 30 * 60 * 1000;
+const { sendCommandResponse } = require('../utils/messageUtils');
 
 setInterval(() => {
   if (deletedMessages.size > 1000) {
@@ -16,14 +17,12 @@ module.exports = {
   async execute(message, args, deleteTimeout) {
     if (args[0] && args[0].toLowerCase() === 'cancel') {
       cancelDelete = true;
-      const cancelMsg = await message.channel.send('Delete operation canceled.');
-      setTimeout(() => cancelMsg.delete().catch(console.error), deleteTimeout);
+      await sendCommandResponse(message, 'Delete operation canceled.', deleteTimeout, true);
       return;
     }
 
     if (isDeleting) {
-      const inProgressMsg = await message.channel.send('A delete operation is already in progress. Please wait or cancel it with `.delete cancel`.');
-      setTimeout(() => inProgressMsg.delete().catch(console.error), deleteTimeout);
+      await sendCommandResponse(message, 'A delete operation is already in progress. Please wait or cancel it with `.delete cancel`.', deleteTimeout, true);
       return;
     }
 
@@ -44,8 +43,7 @@ module.exports = {
     } else if (targetGuildId) {
       await deleteMessagesFromServer(message, targetGuildId, deleteTimeout, speed);
     } else {
-      const errorMsg = await message.channel.send('Please specify how many messages to delete or a server ID. You can also set speed: `.delete [slow/medium/fast] [count/server]`');
-      setTimeout(() => errorMsg.delete().catch(console.error), deleteTimeout);
+      await sendCommandResponse(message, 'Please specify how many messages to delete or a server ID. You can also set speed: `.delete [slow/medium/fast] [count/server]`', deleteTimeout, true);
     }
 
     isDeleting = false;
@@ -182,16 +180,13 @@ async function deleteMessagesFromChannel(message, deleteCount, deleteTimeout, sp
     }
     
     if (cancelDelete) {
-      const canceledMsg = await message.channel.send(`Delete operation canceled after removing ${deletedCount} messages.`);
-      setTimeout(() => canceledMsg.delete().catch(console.error), deleteTimeout);
+      await sendCommandResponse(message, `Delete operation canceled after removing ${deletedCount} messages.`, deleteTimeout, true);
     } else {
-      const completedMsg = await message.channel.send(`Finished deleting ${deletedCount} messages.`);
-      setTimeout(() => completedMsg.delete().catch(console.error), deleteTimeout);
+      await sendCommandResponse(message, `Finished deleting ${deletedCount} messages.`, deleteTimeout, true);
     }
   } catch (error) {
     console.error('[DELETE] Failed to delete messages:', error);
-    const errorMsg = await message.channel.send('There was an error while trying to delete messages.');
-    setTimeout(() => errorMsg.delete().catch(console.error), deleteTimeout);
+    await sendCommandResponse(message, 'There was an error while trying to delete messages.', deleteTimeout, true);
   }
 }
 
@@ -199,8 +194,7 @@ async function deleteMessagesFromServer(message, guildId, deleteTimeout, speed =
   const guild = message.client.guilds.cache.get(guildId);
 
   if (!guild) {
-    const errorMsg = await message.channel.send('I am not in the server with the specified ID.');
-    setTimeout(() => errorMsg.delete().catch(console.error), deleteTimeout);
+    await sendCommandResponse(message, `Guild with ID ${guildId} not found.`, deleteTimeout, true);
     return;
   }
   
@@ -341,15 +335,12 @@ async function deleteMessagesFromServer(message, guildId, deleteTimeout, speed =
     }
     
     if (cancelDelete) {
-      const canceledMsg = await message.channel.send(`Server cleanup canceled after removing ${totalDeleted} messages across ${processedChannels} channels.`);
-      setTimeout(() => canceledMsg.delete().catch(console.error), deleteTimeout);
+      await sendCommandResponse(message, `Delete operation canceled after removing ${totalDeleted} messages across ${processedChannels} channels.`, deleteTimeout, true);
     } else {
-      const completedMsg = await message.channel.send(`Finished cleaning up ${guild.name}: ${totalDeleted} messages deleted across ${processedChannels} channels.`);
-      setTimeout(() => completedMsg.delete().catch(console.error), deleteTimeout);
+      await sendCommandResponse(message, `Finished cleaning up ${guild.name}: ${totalDeleted} messages deleted across ${processedChannels} channels.`, deleteTimeout, true);
     }
   } catch (error) {
     console.error('[DELETE] Failed to delete messages in the server:', error);
-    const errorMsg = await message.channel.send('There was an error while trying to delete messages from the server.');
-    setTimeout(() => errorMsg.delete().catch(console.error), deleteTimeout);
+    await sendCommandResponse(message, 'There was an error while trying to delete messages from the server.', deleteTimeout, true);
   }
 }

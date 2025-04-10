@@ -1,4 +1,5 @@
 let vpnRangesCache = null;
+const { sendCommandResponse } = require('../utils/messageUtils');
 
 function ipToInt(ip) {
     return ip.split('.').reduce((acc, oct) => (acc << 8) + parseInt(oct, 10), 0) >>> 0;
@@ -63,12 +64,10 @@ Organization: ${org}
 AS: ${as}
 VPN: ${vpnCheck ? "True" : "False"}`;
 
-            message.channel.send(`\`\`\`\n${output}\n\`\`\``)
-                .then(sentMsg => setTimeout(() => sentMsg.delete().catch(console.error), 30000));
+            await sendCommandResponse(message, `\`\`\`\n${output}\n\`\`\``, 30000, true);
         } catch (error) {
             console.error("Error fetching IP info:", error);
-            message.channel.send("Error fetching IP info.")
-                .then(sentMsg => setTimeout(() => sentMsg.delete().catch(console.error), deleteTimeout));
+            await sendCommandResponse(message, "Error fetching IP info.", deleteTimeout, true);
         }
     },
 };

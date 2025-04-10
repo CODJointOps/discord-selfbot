@@ -1,3 +1,5 @@
+const { sendCommandResponse } = require('../utils/messageUtils');
+
 module.exports = {
   name: 'react',
   description: `Automatically react with specified emojis to multiple users' messages, or stop reacting.`,
@@ -6,15 +8,16 @@ module.exports = {
     
     if (args.length === 0) {
       if (message.client.targetReactUserIds && message.client.reactEmojis) {
-        const statusMsg = await message.channel.send(
+        await sendCommandResponse(
+          message,
           `Currently reacting to messages from the following users: ${message.client.targetReactUserIds
             .map(id => `User ID: ${id}`)
-            .join(', ')} with the following emojis: ${message.client.reactEmojis.join(' ')}.`
+            .join(', ')} with the following emojis: ${message.client.reactEmojis.join(' ')}.`,
+          deleteTimeout,
+          false
         );
-        setTimeout(() => statusMsg.delete().catch(console.error), deleteTimeout);
       } else {
-        const noTargetMsg = await message.channel.send('No active reaction target.');
-        setTimeout(() => noTargetMsg.delete().catch(console.error), deleteTimeout);
+        await sendCommandResponse(message, 'No active reaction target.', deleteTimeout, false);
       }
       return;
     }
@@ -26,11 +29,9 @@ module.exports = {
         message.client.targetReactUserIds = null;
         message.client.reactEmojis = null;
 
-        const stopMsg = await message.channel.send('Stopped reacting to messages.');
-        setTimeout(() => stopMsg.delete().catch(console.error), deleteTimeout);
+        await sendCommandResponse(message, 'Stopped reacting to messages.', deleteTimeout, false);
       } else {
-        const noActiveReactMsg = await message.channel.send('No active reactions to stop.');
-        setTimeout(() => noActiveReactMsg.delete().catch(console.error), deleteTimeout);
+        await sendCommandResponse(message, 'No active reactions to stop.', deleteTimeout, false);
       }
       return;
     }
@@ -39,37 +40,69 @@ module.exports = {
     const emojis = args.slice(1);
 
     if (targetIds.length === 0 || emojis.length === 0) {
-      const errorMsg = await message.channel.send('Please provide valid user IDs or @mentions and at least one emoji.');
-      setTimeout(() => errorMsg.delete().catch(console.error), deleteTimeout);
+      await sendCommandResponse(message, 'Please provide valid user IDs or @mentions and at least one emoji.', deleteTimeout, false);
       return;
     }
 
     message.client.targetReactUserIds = targetIds;
     message.client.reactEmojis = emojis;
 
-    const confirmationMsg = await message.channel.send(
+    await sendCommandResponse(
+      message,
       `I will now react to messages from the following users: ${targetIds
         .map(id => `User ID: ${id}`)
-        .join(', ')} with the following emojis: ${emojis.join(' ')}.`
+        .join(', ')} with the following emojis: ${emojis.join(' ')}.`,
+      deleteTimeout,
+      false
     );
-    setTimeout(() => confirmationMsg.delete().catch(console.error), deleteTimeout);
 
     if (message.client.reactListener) {
       message.client.off('messageCreate', message.client.reactListener);
     }
 
-    const getRandomDelay = () => Math.floor(Math.random() * (5000 - 2000 + 1)) + 2000;
+    const getHumanizedDelay = () => {
+      const baseDelay = Math.floor(Math.random() * (3000 - 1000 + 1)) + 1000;
+      const jitter = Math.floor(Math.random() * 1000) - 500; 
+      return Math.max(800, baseDelay + jitter);
+    };
 
     message.client.reactListener = async (msg) => {
       if (message.client.targetReactUserIds && message.client.targetReactUserIds.includes(msg.author.id)) {
-        for (const emoji of emojis) {
-          try {
-            const delay = getRandomDelay();
-            await new Promise((resolve) => setTimeout(resolve, delay));
-            await msg.react(emoji);
-          } catch (error) {
-            console.error('Failed to react:', error);
+        try {
+          const shouldReact = Math.random() < 0.95; 
+          
+          if (!shouldReact) {
+            console.log(`[REACT] Randomly skipping reaction to message ${msg.id}`);
+            return;
           }
+          
+          const initialDelay = getHumanizedDelay();
+          await new Promise(resolve => setTimeout(resolve, initialDelay));
+          
+          for (const emoji of emojis) {
+            if (Math.random() < 0.05) {
+              console.log(`[REACT] Skipping emoji ${emoji} for more human-like behavior`);
+              continue;
+            }
+            
+            try {
+              const reactDelay = getHumanizedDelay();
+              
+              if (Math.random() < 0.08) {
+                const extraDelay = Math.floor(Math.random() * 4000) + 1000;
+                console.log(`[REACT] Adding ${extraDelay}ms extra delay before reacting with ${emoji}`);
+                await new Promise(resolve => setTimeout(resolve, extraDelay));
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, reactDelay));
+              await msg.react(emoji);
+              
+            } catch (error) {
+              console.error(`[REACT] Failed to react with ${emoji}:`, error);
+            }
+          }
+        } catch (error) {
+          console.error('[REACT] Error in reaction handler:', error);
         }
       }
     };

@@ -1,3 +1,5 @@
+const { sendCommandResponse } = require('../utils/messageUtils');
+
 module.exports = {
     name: 'reply',
     description: `Automatically reply with a specified message to multiple users' messages, or stop replying.`,
@@ -6,15 +8,16 @@ module.exports = {
       
       if (args.length === 0) {
         if (message.client.targetReplyUserIds && message.client.replyMessage) {
-          const statusMsg = await message.channel.send(
+          await sendCommandResponse(
+            message,
             `Currently replying to messages from the following users: ${message.client.targetReplyUserIds
               .map(id => `User ID: ${id}`)
-              .join(', ')} with the message: "${message.client.replyMessage}".`
+              .join(', ')} with the message: "${message.client.replyMessage}".`,
+            deleteTimeout,
+            false
           );
-          setTimeout(() => statusMsg.delete().catch(console.error), deleteTimeout);
         } else {
-          const noTargetMsg = await message.channel.send('No active reply target.');
-          setTimeout(() => noTargetMsg.delete().catch(console.error), deleteTimeout);
+          await sendCommandResponse(message, 'No active reply target.', deleteTimeout, false);
         }
         return;
       }
@@ -26,11 +29,9 @@ module.exports = {
           message.client.targetReplyUserIds = null;
           message.client.replyMessage = null;
   
-          const stopMsg = await message.channel.send('Stopped replying to messages.');
-          setTimeout(() => stopMsg.delete().catch(console.error), deleteTimeout);
+          await sendCommandResponse(message, 'Stopped replying to messages.', deleteTimeout, false);
         } else {
-          const noActiveReplyMsg = await message.channel.send('No active replies to stop.');
-          setTimeout(() => noActiveReplyMsg.delete().catch(console.error), deleteTimeout);
+          await sendCommandResponse(message, 'No active replies to stop.', deleteTimeout, false);
         }
         return;
       }
@@ -39,20 +40,21 @@ module.exports = {
       const replyMessage = args.slice(1).join(' ');
   
       if (targetIds.length === 0 || !replyMessage) {
-        const errorMsg = await message.channel.send('Please provide valid user IDs or @mentions and a message to reply with.');
-        setTimeout(() => errorMsg.delete().catch(console.error), deleteTimeout);
+        await sendCommandResponse(message, 'Please provide valid user IDs or @mentions and a message to reply with.', deleteTimeout, false);
         return;
       }
   
       message.client.targetReplyUserIds = targetIds;
       message.client.replyMessage = replyMessage;
   
-      const confirmationMsg = await message.channel.send(
+      await sendCommandResponse(
+        message,
         `I will now reply to messages from the following users: ${targetIds
           .map(id => `User ID: ${id}`)
-          .join(', ')} with the message: "${replyMessage}".`
+          .join(', ')} with the message: "${replyMessage}".`,
+        deleteTimeout,
+        false
       );
-      setTimeout(() => confirmationMsg.delete().catch(console.error), deleteTimeout);
   
       if (message.client.replyListener) {
         message.client.off('messageCreate', message.client.replyListener);

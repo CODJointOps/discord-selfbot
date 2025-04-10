@@ -1,4 +1,5 @@
 const { extractUserId } = require('../utils/userUtils');
+const { sendCommandResponse } = require('../utils/messageUtils');
 
 let activeKicks = new Map();
 let cooldowns = new Map();
@@ -111,8 +112,7 @@ module.exports = {
     description: 'Automatically kicks specified users from voice channels.',
     async execute(message, args, deleteTimeout) {
         if (args.length === 0) {
-            message.channel.send('Please provide a command: `start <userId(s)>` or `stop <userId or "all">`')
-                .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+            await sendCommandResponse(message, 'Please provide a command: `start <userId(s)>` or `stop <userId or "all">`', deleteTimeout, true);
             return;
         }
 
@@ -120,8 +120,7 @@ module.exports = {
 
         if (command === 'stop') {
             if (args.length < 2) {
-                message.channel.send('Please specify a user ID or "all" to stop kicking.')
-                    .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+                await sendCommandResponse(message, 'Please specify a user ID or "all" to stop kicking.', deleteTimeout, true);
                 return;
             }
 
@@ -138,15 +137,13 @@ module.exports = {
                 }
                 voiceStateUpdateHandlers.clear();
                 
-                message.channel.send('Stopped all active VC kicks.')
-                    .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+                await sendCommandResponse(message, 'Stopped all active VC kicks.', deleteTimeout, true);
                 return;
             } else {
                 const userId = extractUserId(target);
                 
                 if (!userId) {
-                    message.channel.send('Invalid user ID.')
-                        .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+                    await sendCommandResponse(message, 'Invalid user ID.', deleteTimeout, true);
                     return;
                 }
 
@@ -158,11 +155,9 @@ module.exports = {
                     checkIntervals.delete(userId);
                     console.log(`[KICKVC] Stopped kicking user: ${userId}`);
                     
-                    message.channel.send(`Stopped kicking user: ${userId}`)
-                        .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+                    await sendCommandResponse(message, `Stopped kicking user: ${userId}`, deleteTimeout, true);
                 } else {
-                    message.channel.send(`No active kick for user: ${userId}`)
-                        .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+                    await sendCommandResponse(message, `No active kick for user: ${userId}`, deleteTimeout, true);
                 }
                 return;
             }
@@ -170,8 +165,7 @@ module.exports = {
 
         if (command === 'start') {
             if (args.length < 2) {
-                message.channel.send('Please provide at least one user ID to kick.')
-                    .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+                await sendCommandResponse(message, 'Please provide at least one user ID to kick.', deleteTimeout, true);
                 return;
             }
 
@@ -180,8 +174,7 @@ module.exports = {
                 .filter(id => id !== null);
 
             if (userIds.length === 0) {
-                message.channel.send('No valid user IDs provided.')
-                    .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+                await sendCommandResponse(message, 'No valid user IDs provided.', deleteTimeout, true);
                 return;
             }
 
@@ -257,22 +250,19 @@ module.exports = {
                 console.log(`[KICKVC] Started kicking user: ${userId}`);
             }
 
-            let responseMessage = '';
-            
             if (startedKicking.length > 0) {
-                responseMessage += `Started kicking ${startedKicking.length} user(s): ${startedKicking.join(', ')}\n`;
+                await sendCommandResponse(
+                    message,
+                    `Started kicking: ${startedKicking.join(', ')}${alreadyKicking.length > 0 ? `\nAlready kicking: ${alreadyKicking.join(', ')}` : ''}`,
+                    deleteTimeout,
+                    true
+                );
+            } else if (alreadyKicking.length > 0) {
+                await sendCommandResponse(message, `Already kicking: ${alreadyKicking.join(', ')}`, deleteTimeout, true);
             }
-            
-            if (alreadyKicking.length > 0) {
-                responseMessage += `Already kicking: ${alreadyKicking.join(', ')}`;
-            }
-            
-            message.channel.send(responseMessage)
-                .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
             return;
         }
 
-        message.channel.send('Unknown command. Use `start <userId(s)>` or `stop <userId or "all">`')
-            .then(msg => setTimeout(() => msg.delete().catch(() => {}), deleteTimeout));
+        await sendCommandResponse(message, 'Unknown command. Use `start <userId(s)>` or `stop <userId or "all">`.', deleteTimeout, true);
     }
 };

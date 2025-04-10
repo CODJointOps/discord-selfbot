@@ -6,6 +6,7 @@ let ignoredMessages = new Set();
 let isFirstDeletion = true;
 let deletedMessages = new Set();
 const CACHE_CLEANUP_INTERVAL = 30 * 60 * 1000;
+const { sendCommandResponse } = require('../utils/messageUtils');
 
 const DELETION_DELAY = 5 * 60 * 1000;
 let DELETE_INTERVAL_MIN = 8000;
@@ -198,93 +199,116 @@ module.exports = {
     async execute(message, args, deleteTimeout) {
         ignoredMessages.add(message.id);
 
-        if (args[0]?.toLowerCase() === 'stop') {
-            isAutoDeleteActive = false;
+        if (args.length === 0 || args[0].toLowerCase() === 'status') {
+            const statusText = isAutoDeleteActive
+                ? `Auto-delete is ON - Messages will be deleted after approximately ${Math.round(DELETION_DELAY / 1000 / 60)} minutes.`
+                : 'Auto-delete is OFF.';
 
-            for (const [messageId, timer] of messageTimers) {
-                clearTimeout(timer);
-                console.log(`[AUTODELETE] Cleared timer for message: ${messageId}`);
-            }
-
-            messageTimers.clear();
-            deleteQueue = [];
-            isProcessingQueue = false;
-            isFirstDeletion = true;
-
-            DELETE_INTERVAL_MIN = 8000;
-            DELETE_INTERVAL_MAX = 15000;
-            currentBatchCount = 0;
-
-            console.log('[AUTODELETE] System deactivated - All timers cleared');
-            message.channel.send('Auto-delete has been deactivated.')
-                .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
+            await sendCommandResponse(
+                message,
+                `${statusText}\nQueue size: ${deleteQueue.length} messages | Tracked messages: ${messageTimers.size}`,
+                deleteTimeout, 
+                true
+            );
             return;
         }
 
-        if (args[0]?.toLowerCase() === 'delay' && args[1]) {
-            const newDelay = parseInt(args[1], 10);
-            if (!isNaN(newDelay) && newDelay >= 1) {
-                const oldDelay = Math.round(DELETION_DELAY / 1000 / 60);
-                DELETION_DELAY = newDelay * 1000 * 60;
-                message.channel.send(`Auto-delete delay changed from ${oldDelay} to ${newDelay} minutes.`)
-                    .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
-                return;
-            } else {
-                message.channel.send('Please provide a valid delay in minutes (minimum 1 minute).')
-                    .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
+        const command = args[0].toLowerCase();
+
+        if (command === 'on' || command === 'start' || command === 'enable') {
+            if (isAutoDeleteActive) {
+                await sendCommandResponse(message, 'Auto-delete is already active.', deleteTimeout, true);
                 return;
             }
-        }
 
-        if (args[0]?.toLowerCase() === 'speed') {
-            if (args[1]?.toLowerCase() === 'slow') {
-                DELETE_INTERVAL_MIN = 15000;
-                DELETE_INTERVAL_MAX = 30000;
-                PAUSE_CHANCE = 0.25;
-                message.channel.send('Auto-delete speed set to slow mode (very human-like with frequent pauses).')
-                    .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
-                return;
-            } else if (args[1]?.toLowerCase() === 'medium') {
-                DELETE_INTERVAL_MIN = 8000;
-                DELETE_INTERVAL_MAX = 15000;
-                PAUSE_CHANCE = 0.15;
-                message.channel.send('Auto-delete speed set to medium mode (balanced human-like behavior).')
-                    .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
-                return;
-            } else if (args[1]?.toLowerCase() === 'fast') {
-                DELETE_INTERVAL_MIN = 5000;
-                DELETE_INTERVAL_MAX = 10000;
-                PAUSE_CHANCE = 0.05;
-                message.channel.send('Auto-delete speed set to fast mode (less human-like but quicker progress).')
-                    .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
-                return;
-            } else {
-                message.channel.send('Please specify a valid speed: slow, medium, or fast.')
-                    .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
-                return;
-            }
-        }
-
-        if (!isAutoDeleteActive) {
             isAutoDeleteActive = true;
-            isFirstDeletion = true;
-            currentBatchCount = 0;
-            console.log('[AUTODELETE] System activated - Now tracking new messages');
-
-            message.client.removeListener('messageCreate', handleNewMessage);
             message.client.on('messageCreate', handleNewMessage);
 
-            const delayInMinutes = Math.round(DELETION_DELAY / 1000 / 60);
-            message.channel.send(
-                `Auto-delete activated. Messages will be deleted after ~${delayInMinutes} minutes ` +
-                `with human-like timing. Use \`.autodelete speed slow/medium/fast\` to adjust deletion speed.`
-            ).then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
-        } else {
-            const delayInMinutes = Math.round(DELETION_DELAY / 1000 / 60);
-            message.channel.send(
-                `Auto-delete is already active. Current delay: ~${delayInMinutes} minutes. ` +
-                `Use \`.autodelete speed slow/medium/fast\` to adjust deletion speed.`
-            ).then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
+            await sendCommandResponse(
+                message,
+                `Auto-delete enabled. Your messages will be deleted after approximately ${Math.round(DELETION_DELAY / 1000 / 60)} minutes.`,
+                deleteTimeout,
+                true
+            );
+            return;
         }
+
+        if (command === 'off' || command === 'stop' || command === 'disable') {
+            if (!isAutoDeleteActive) {
+                await sendCommandResponse(message, 'Auto-delete is not active.', deleteTimeout, true);
+                return;
+            }
+
+            isAutoDeleteActive = false;
+            message.client.off('messageCreate', handleNewMessage);
+
+            for (const timer of messageTimers.values()) {
+                clearTimeout(timer);
+            }
+            messageTimers.clear();
+
+            await sendCommandResponse(message, 'Auto-delete disabled. Messages will no longer be automatically deleted.', deleteTimeout, true);
+            return;
+        }
+
+        if (command === 'clear') {
+            const queueSize = deleteQueue.length;
+            const trackCount = messageTimers.size;
+            
+            deleteQueue = [];
+            for (const timer of messageTimers.values()) {
+                clearTimeout(timer);
+            }
+            messageTimers.clear();
+            currentBatchCount = 0;
+            
+            await sendCommandResponse(message, `Cleared auto-delete queue (${queueSize} pending, ${trackCount} tracked).`, deleteTimeout, true);
+            return;
+        }
+
+        if (command === 'speed') {
+            const speedOption = args[1]?.toLowerCase();
+            
+            if (!speedOption || !['slow', 'normal', 'fast'].includes(speedOption)) {
+                await sendCommandResponse(message, 'Please specify a valid speed: slow, normal, or fast.', deleteTimeout, true);
+                return;
+            }
+            
+            if (speedOption === 'slow') {
+                DELETE_INTERVAL_MIN = 12000;
+                DELETE_INTERVAL_MAX = 25000;
+                JITTER_FACTOR = 0.5;
+                PAUSE_CHANCE = 0.25;
+                PAUSE_LENGTH_MIN = 45000;
+                PAUSE_LENGTH_MAX = 180000;
+                BATCH_SIZE = 2;
+            } else if (speedOption === 'fast') {
+                DELETE_INTERVAL_MIN = 5000;
+                DELETE_INTERVAL_MAX = 10000;
+                JITTER_FACTOR = 0.3;
+                PAUSE_CHANCE = 0.1;
+                PAUSE_LENGTH_MIN = 15000;
+                PAUSE_LENGTH_MAX = 60000;
+                BATCH_SIZE = 5;
+            } else {
+                DELETE_INTERVAL_MIN = 8000;
+                DELETE_INTERVAL_MAX = 15000;
+                JITTER_FACTOR = 0.4;
+                PAUSE_CHANCE = 0.15;
+                PAUSE_LENGTH_MIN = 30000;
+                PAUSE_LENGTH_MAX = 120000;
+                BATCH_SIZE = 3;
+            }
+            
+            await sendCommandResponse(message, `Auto-delete speed set to ${speedOption}.`, deleteTimeout, true);
+            return;
+        }
+
+        await sendCommandResponse(
+            message,
+            'Unknown command. Available options: on/off, status, clear, speed [slow/normal/fast]',
+            deleteTimeout,
+            true
+        );
     },
 };

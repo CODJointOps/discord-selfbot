@@ -4,6 +4,7 @@ let channelToWatch = null;
 let lastAddTimes = new Map();
 let failedAttempts = new Map();
 let recentAdds = new Map();
+const { sendCommandResponse } = require('../utils/messageUtils');
 
 const getBackoffDelay = (userId) => {
     const attempts = failedAttempts.get(userId) || 0;
@@ -28,8 +29,7 @@ module.exports = {
         const { extractUserId } = require('../utils/userUtils');
         
         if (message.channel.type !== 'GROUP_DM') {
-            message.channel.send('This command only works in group DMs.')
-                .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
+            await sendCommandResponse(message, 'This command only works in group DMs.', deleteTimeout, true);
             return;
         }
 
@@ -42,8 +42,7 @@ module.exports = {
             channelToWatch = null;
             console.log('[GROUPADD] System deactivated');
 
-            message.channel.send('Group auto-add deactivated.')
-                .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
+            await sendCommandResponse(message, 'Group auto-add deactivated.', deleteTimeout, true);
             return;
         }
 
@@ -52,8 +51,7 @@ module.exports = {
             .filter(id => id !== null);
             
         if (validIds.length === 0) {
-            message.channel.send('Please provide at least one valid user ID or @mention.')
-                .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
+            await sendCommandResponse(message, 'Please provide at least one valid user ID or @mention.', deleteTimeout, true);
             return;
         }
 
@@ -156,7 +154,6 @@ module.exports = {
         message.client.on('channelRecipientRemove', handleRecipientRemove);
 
         const targetCount = targetUserIds.size;
-        message.channel.send(`Now watching for ${targetCount} user${targetCount > 1 ? 's' : ''} to leave the group.`)
-            .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
+        await sendCommandResponse(message, `Now watching for ${targetCount} user${targetCount > 1 ? 's' : ''} to leave the group.`, deleteTimeout, true);
     },
 };
