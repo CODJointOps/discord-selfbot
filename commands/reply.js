@@ -8,7 +8,7 @@ module.exports = {
         if (message.client.targetReplyUserIds && message.client.replyMessage) {
           const statusMsg = await message.channel.send(
             `Currently replying to messages from the following users: ${message.client.targetReplyUserIds
-              .map(id => `<@${id}>`)
+              .map(id => `User ID: ${id}`)
               .join(', ')} with the message: "${message.client.replyMessage}".`
           );
           setTimeout(() => statusMsg.delete().catch(console.error), deleteTimeout);
@@ -49,7 +49,7 @@ module.exports = {
   
       const confirmationMsg = await message.channel.send(
         `I will now reply to messages from the following users: ${targetIds
-          .map(id => `<@${id}>`)
+          .map(id => `User ID: ${id}`)
           .join(', ')} with the message: "${replyMessage}".`
       );
       setTimeout(() => confirmationMsg.delete().catch(console.error), deleteTimeout);

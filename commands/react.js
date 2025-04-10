@@ -8,7 +8,7 @@ module.exports = {
       if (message.client.targetReactUserIds && message.client.reactEmojis) {
         const statusMsg = await message.channel.send(
           `Currently reacting to messages from the following users: ${message.client.targetReactUserIds
-            .map(id => `<@${id}>`)
+            .map(id => `User ID: ${id}`)
             .join(', ')} with the following emojis: ${message.client.reactEmojis.join(' ')}.`
         );
         setTimeout(() => statusMsg.delete().catch(console.error), deleteTimeout);
@@ -49,7 +49,7 @@ module.exports = {
 
     const confirmationMsg = await message.channel.send(
       `I will now react to messages from the following users: ${targetIds
-        .map(id => `<@${id}>`)
+        .map(id => `User ID: ${id}`)
         .join(', ')} with the following emojis: ${emojis.join(' ')}.`
     );
     setTimeout(() => confirmationMsg.delete().catch(console.error), deleteTimeout);
