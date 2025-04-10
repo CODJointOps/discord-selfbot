@@ -1,7 +1,9 @@
 module.exports = {
   name: 'react',
-  description: `Automatically react with specified emojis to multiple users’ messages, or stop reacting.`,
+  description: `Automatically react with specified emojis to multiple users' messages, or stop reacting.`,
   async execute(message, args, deleteTimeout) {
+    const { processUserInput } = require('../utils/userUtils');
+    
     if (args.length === 0) {
       if (message.client.targetReactUserIds && message.client.reactEmojis) {
         const statusMsg = await message.channel.send(
@@ -33,11 +35,11 @@ module.exports = {
       return;
     }
 
-    const targetIds = args[0].split(',').map(id => id.trim());
+    const targetIds = processUserInput(args[0]);
     const emojis = args.slice(1);
 
     if (targetIds.length === 0 || emojis.length === 0) {
-      const errorMsg = await message.channel.send('Please provide valid user IDs and at least one emoji.');
+      const errorMsg = await message.channel.send('Please provide valid user IDs or @mentions and at least one emoji.');
       setTimeout(() => errorMsg.delete().catch(console.error), deleteTimeout);
       return;
     }

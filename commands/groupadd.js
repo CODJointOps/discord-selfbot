@@ -11,6 +11,8 @@ module.exports = {
     name: 'groupadd',
     description: 'Automatically re-adds users to group when they leave. Use multiple IDs for multiple targets.',
     async execute(message, args, deleteTimeout) {
+        const { extractUserId } = require('../utils/userUtils');
+        
         if (message.channel.type !== 'GROUP_DM') {
             message.channel.send('This command only works in group DMs.')
                 .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
@@ -29,9 +31,12 @@ module.exports = {
             return;
         }
 
-        const validIds = args.filter(id => /^\d{17,19}$/.test(id));
+        const validIds = args
+            .map(arg => extractUserId(arg))
+            .filter(id => id !== null);
+            
         if (validIds.length === 0) {
-            message.channel.send('Please provide at least one valid user ID.')
+            message.channel.send('Please provide at least one valid user ID or @mention.')
                 .then(msg => setTimeout(() => msg.delete().catch(() => { }), deleteTimeout));
             return;
         }

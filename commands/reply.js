@@ -1,7 +1,9 @@
 module.exports = {
     name: 'reply',
-    description: `Automatically reply with a specified message to multiple users’ messages, or stop replying.`,
+    description: `Automatically reply with a specified message to multiple users' messages, or stop replying.`,
     async execute(message, args, deleteTimeout) {
+      const { processUserInput } = require('../utils/userUtils');
+      
       if (args.length === 0) {
         if (message.client.targetReplyUserIds && message.client.replyMessage) {
           const statusMsg = await message.channel.send(
@@ -33,11 +35,11 @@ module.exports = {
         return;
       }
   
-      const targetIds = args[0].split(',').map(id => id.trim());
+      const targetIds = processUserInput(args[0]);
       const replyMessage = args.slice(1).join(' ');
   
       if (targetIds.length === 0 || !replyMessage) {
-        const errorMsg = await message.channel.send('Please provide valid user IDs and a message to reply with.');
+        const errorMsg = await message.channel.send('Please provide valid user IDs or @mentions and a message to reply with.');
         setTimeout(() => errorMsg.delete().catch(console.error), deleteTimeout);
         return;
       }
