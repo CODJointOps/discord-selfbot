@@ -14,9 +14,15 @@ function extractUserId(input) {
 }
 
 function processUserInput(input) {
-    return input
-        .split(',')
-        .map(part => part.trim())
+    // First try to split by commas
+    let parts = input.split(',').map(part => part.trim()).filter(part => part !== '');
+    
+    // If we only have one part, try splitting by spaces
+    if (parts.length === 1) {
+        parts = input.split(/\s+/).filter(part => part !== '');
+    }
+    
+    return parts
         .map(part => extractUserId(part))
         .filter(id => id !== null);
 }

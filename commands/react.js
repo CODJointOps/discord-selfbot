@@ -2,7 +2,7 @@ const { sendCommandResponse } = require('../utils/messageUtils');
 
 module.exports = {
   name: 'react',
-  description: `Automatically react with specified emojis to multiple users' messages, or stop reacting.`,
+  description: `Automatically react with specified emojis to multiple users' messages, or stop reacting. Usage: .react [user1,user2,...] [emoji1] [emoji2] ...`,
   async execute(message, args, deleteTimeout) {
     const { processUserInput } = require('../utils/userUtils');
     
@@ -36,22 +36,68 @@ module.exports = {
       return;
     }
 
-    const targetIds = processUserInput(args[0]);
-    const emojis = args.slice(1);
+    // Find where the emojis start
+    let emojiStartIndex = -1;
+    for (let i = 0; i < args.length; i++) {
+      // Check if this argument looks like an emoji (contains : or is a single character)
+      if (args[i].includes(':') || args[i].length <= 2) {
+        emojiStartIndex = i;
+        break;
+      }
+    }
 
-    if (targetIds.length === 0 || emojis.length === 0) {
-      await sendCommandResponse(message, 'Please provide valid user IDs or @mentions and at least one emoji.', deleteTimeout, false);
+    if (emojiStartIndex === -1) {
+      await sendCommandResponse(message, 'Please provide at least one emoji to react with.', deleteTimeout, false);
       return;
     }
 
-    message.client.targetReactUserIds = targetIds;
-    message.client.reactEmojis = emojis;
+    // All arguments before emojiStartIndex are user IDs
+    const userInput = args.slice(0, emojiStartIndex).join(' ');
+    const emojis = args.slice(emojiStartIndex);
 
+    console.log(`[REACT] Processing user input: "${userInput}"`);
+    const targetIds = processUserInput(userInput);
+    console.log(`[REACT] Extracted user IDs: ${targetIds.join(', ')}`);
+    
+    if (targetIds.length === 0) {
+      await sendCommandResponse(message, 'Please provide valid user IDs or @mentions. You can use multiple users separated by spaces or commas.', deleteTimeout, false);
+      return;
+    }
+
+    // Process emojis to handle custom emojis
+    const processedEmojis = emojis.map(emoji => {
+      // Check if it's a custom emoji (format: :name:)
+      const customEmojiMatch = emoji.match(/^:([a-zA-Z0-9_]+):$/);
+      if (customEmojiMatch) {
+        // For custom emojis, we need to find the emoji ID from the guild
+        const emojiName = customEmojiMatch[1];
+        const customEmoji = message.guild?.emojis.cache.find(e => e.name === emojiName);
+        if (customEmoji) {
+          return customEmoji.id;
+        }
+      }
+      // For standard emojis, just return as is
+      return emoji;
+    });
+
+    message.client.targetReactUserIds = targetIds;
+    message.client.reactEmojis = processedEmojis;
+
+    // Create a more detailed confirmation message with a different format
+    let userListText = '';
+    if (targetIds.length === 1) {
+      userListText = `User ID: ${targetIds[0]}`;
+    } else {
+      userListText = targetIds.map((id, index) => `User ID ${index + 1}: ${id}`).join('\n');
+    }
+    
+    const confirmationMessage = `I will now react to messages from:\n${userListText}\n\nWith the following emojis: ${emojis.join(' ')}`;
+    
+    console.log(`[REACT] Confirmation message: ${confirmationMessage}`);
+    
     await sendCommandResponse(
       message,
-      `I will now react to messages from the following users: ${targetIds
-        .map(id => `User ID: ${id}`)
-        .join(', ')} with the following emojis: ${emojis.join(' ')}.`,
+      confirmationMessage,
       deleteTimeout,
       false
     );
@@ -79,7 +125,7 @@ module.exports = {
           const initialDelay = getHumanizedDelay();
           await new Promise(resolve => setTimeout(resolve, initialDelay));
           
-          for (const emoji of emojis) {
+          for (const emoji of processedEmojis) {
             if (Math.random() < 0.05) {
               console.log(`[REACT] Skipping emoji ${emoji} for more human-like behavior`);
               continue;
