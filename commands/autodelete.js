@@ -3,10 +3,60 @@ let deleteQueue = [];
 let isProcessingQueue = false;
 let messageTimers = new Map();
 let ignoredMessages = new Set();
+let ignoredChannels = new Set();
+let ignoredUsers = new Set();
+let ignoredGuilds = new Set();
 let isFirstDeletion = true;
 let deletedMessages = new Set();
 const CACHE_CLEANUP_INTERVAL = 30 * 60 * 1000;
 const { sendCommandResponse } = require('../utils/messageUtils');
+const fs = require('fs');
+const path = require('path');
+
+const DATA_DIR = path.join(__dirname, '..', 'data');
+const IGNORE_FILE = path.join(DATA_DIR, 'autodelete_ignores.json');
+
+if (!fs.existsSync(DATA_DIR)) {
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        console.log('[AUTODELETE] Created data directory');
+    } catch (error) {
+        console.error('[AUTODELETE] Error creating data directory:', error);
+    }
+}
+
+function loadIgnoreLists() {
+    try {
+        if (fs.existsSync(IGNORE_FILE)) {
+            const data = JSON.parse(fs.readFileSync(IGNORE_FILE, 'utf8'));
+            
+            if (data.ignoredChannels) ignoredChannels = new Set(data.ignoredChannels);
+            if (data.ignoredUsers) ignoredUsers = new Set(data.ignoredUsers);
+            if (data.ignoredGuilds) ignoredGuilds = new Set(data.ignoredGuilds);
+            
+            console.log('[AUTODELETE] Loaded ignore lists from file');
+        }
+    } catch (error) {
+        console.error('[AUTODELETE] Error loading ignore lists:', error);
+    }
+}
+
+function saveIgnoreLists() {
+    try {
+        const data = {
+            ignoredChannels: Array.from(ignoredChannels),
+            ignoredUsers: Array.from(ignoredUsers),
+            ignoredGuilds: Array.from(ignoredGuilds)
+        };
+        
+        fs.writeFileSync(IGNORE_FILE, JSON.stringify(data, null, 2), 'utf8');
+        console.log('[AUTODELETE] Saved ignore lists to file');
+    } catch (error) {
+        console.error('[AUTODELETE] Error saving ignore lists:', error);
+    }
+}
+
+loadIgnoreLists();
 
 const DELETION_DELAY = 5 * 60 * 1000;
 let DELETE_INTERVAL_MIN = 8000;
@@ -186,6 +236,21 @@ const handleNewMessage = (message) => {
         return;
     }
 
+    if (message.channel && ignoredChannels.has(message.channel.id)) {
+        console.log(`[AUTODELETE] Skipping message in ignored channel: ${message.channel.id}`);
+        return;
+    }
+    
+    if (message.guild && ignoredGuilds.has(message.guild.id)) {
+        console.log(`[AUTODELETE] Skipping message in ignored guild: ${message.guild.id}`);
+        return;
+    }
+    
+    if (!message.guild && message.channel && ignoredUsers.has(message.channel.recipient?.id)) {
+        console.log(`[AUTODELETE] Skipping message to ignored user: ${message.channel.recipient.id}`);
+        return;
+    }
+
     console.log(`[AUTODELETE] New message tracked: ${message.id}`);
     console.log(`[AUTODELETE] Content preview: ${message.content.slice(0, 30)}...`);
 
@@ -212,13 +277,18 @@ module.exports = {
         ignoredMessages.add(message.id);
 
         if (args.length === 0 || args[0].toLowerCase() === 'status') {
+            let ignoreStatus = '';
+            if (ignoredChannels.size > 0 || ignoredGuilds.size > 0 || ignoredUsers.size > 0) {
+                ignoreStatus = `\nIgnored: ${ignoredChannels.size} channels, ${ignoredGuilds.size} servers, ${ignoredUsers.size} users`;
+            }
+            
             const statusText = isAutoDeleteActive
                 ? `Auto-delete is ON - Messages will be deleted after approximately ${Math.round(DELETION_DELAY / 1000 / 60)} minutes.`
                 : 'Auto-delete is OFF.';
 
             await sendCommandResponse(
                 message,
-                `${statusText}\nQueue size: ${deleteQueue.length} messages | Tracked messages: ${messageTimers.size}`,
+                `${statusText}\nQueue size: ${deleteQueue.length} messages | Tracked messages: ${messageTimers.size}${ignoreStatus}`,
                 deleteTimeout, 
                 true
             );
@@ -316,9 +386,176 @@ module.exports = {
             return;
         }
 
+        if (command === 'ignore') {
+            if (args.length < 2) {
+                await sendCommandResponse(
+                    message,
+                    'Please specify what to ignore. Usage: `.autodelete ignore [channel/server/user] [ID]`',
+                    deleteTimeout,
+                    true
+                );
+                return;
+            }
+            
+            const ignoreType = args[1].toLowerCase();
+            const id = args[2];
+            
+            if (!id || !/^\d{17,19}$/.test(id)) {
+                await sendCommandResponse(
+                    message,
+                    'Please provide a valid ID (channel, server, or user ID).',
+                    deleteTimeout,
+                    true
+                );
+                return;
+            }
+            
+            if (ignoreType === 'channel' || ignoreType === 'c') {
+                ignoredChannels.add(id);
+                saveIgnoreLists();
+                await sendCommandResponse(
+                    message,
+                    `Channel ${id} will now be ignored by auto-delete.`,
+                    deleteTimeout,
+                    true
+                );
+            } else if (ignoreType === 'server' || ignoreType === 'guild' || ignoreType === 's' || ignoreType === 'g') {
+                ignoredGuilds.add(id);
+                saveIgnoreLists();
+                await sendCommandResponse(
+                    message,
+                    `Server ${id} will now be ignored by auto-delete.`,
+                    deleteTimeout,
+                    true
+                );
+            } else if (ignoreType === 'user' || ignoreType === 'u' || ignoreType === 'dm') {
+                ignoredUsers.add(id);
+                saveIgnoreLists();
+                await sendCommandResponse(
+                    message,
+                    `User ${id} (DMs) will now be ignored by auto-delete.`,
+                    deleteTimeout,
+                    true
+                );
+            } else {
+                await sendCommandResponse(
+                    message,
+                    'Invalid ignore type. Use "channel", "server", or "user".',
+                    deleteTimeout,
+                    true
+                );
+            }
+            return;
+        }
+        
+        if (command === 'unignore') {
+            if (args.length < 2) {
+                await sendCommandResponse(
+                    message,
+                    'Please specify what to unignore. Usage: `.autodelete unignore [channel/server/user] [ID]`',
+                    deleteTimeout,
+                    true
+                );
+                return;
+            }
+            
+            const ignoreType = args[1].toLowerCase();
+            const id = args[2];
+            
+            if (!id || !/^\d{17,19}$/.test(id)) {
+                await sendCommandResponse(
+                    message,
+                    'Please provide a valid ID (channel, server, or user ID).',
+                    deleteTimeout,
+                    true
+                );
+                return;
+            }
+            
+            if (ignoreType === 'channel' || ignoreType === 'c') {
+                if (ignoredChannels.has(id)) {
+                    ignoredChannels.delete(id);
+                    saveIgnoreLists();
+                    await sendCommandResponse(
+                        message,
+                        `Channel ${id} will no longer be ignored by auto-delete.`,
+                        deleteTimeout,
+                        true
+                    );
+                } else {
+                    await sendCommandResponse(
+                        message,
+                        `Channel ${id} is not in the ignore list.`,
+                        deleteTimeout,
+                        true
+                    );
+                }
+            } else if (ignoreType === 'server' || ignoreType === 'guild' || ignoreType === 's' || ignoreType === 'g') {
+                if (ignoredGuilds.has(id)) {
+                    ignoredGuilds.delete(id);
+                    saveIgnoreLists();
+                    await sendCommandResponse(
+                        message,
+                        `Server ${id} will no longer be ignored by auto-delete.`,
+                        deleteTimeout,
+                        true
+                    );
+                } else {
+                    await sendCommandResponse(
+                        message,
+                        `Server ${id} is not in the ignore list.`,
+                        deleteTimeout,
+                        true
+                    );
+                }
+            } else if (ignoreType === 'user' || ignoreType === 'u' || ignoreType === 'dm') {
+                if (ignoredUsers.has(id)) {
+                    ignoredUsers.delete(id);
+                    saveIgnoreLists();
+                    await sendCommandResponse(
+                        message,
+                        `User ${id} (DMs) will no longer be ignored by auto-delete.`,
+                        deleteTimeout,
+                        true
+                    );
+                } else {
+                    await sendCommandResponse(
+                        message,
+                        `User ${id} is not in the ignore list.`,
+                        deleteTimeout,
+                        true
+                    );
+                }
+            } else {
+                await sendCommandResponse(
+                    message,
+                    'Invalid ignore type. Use "channel", "server", or "user".',
+                    deleteTimeout,
+                    true
+                );
+            }
+            return;
+        }
+        
+        if (command === 'ignorelist' || command === 'list') {
+            let ignoredChannelsList = Array.from(ignoredChannels).join(', ');
+            let ignoredGuildsList = Array.from(ignoredGuilds).join(', ');
+            let ignoredUsersList = Array.from(ignoredUsers).join(', ');
+            
+            const ignoredInfo = `**Ignored Channels:** ${ignoredChannels.size > 0 ? ignoredChannelsList : 'None'}\n**Ignored Servers:** ${ignoredGuilds.size > 0 ? ignoredGuildsList : 'None'}\n**Ignored Users (DMs):** ${ignoredUsers.size > 0 ? ignoredUsersList : 'None'}`;
+            
+            await sendCommandResponse(
+                message,
+                `**Auto-delete Ignore List**\n\n${ignoredInfo}`,
+                deleteTimeout,
+                true
+            );
+            return;
+        }
+
         await sendCommandResponse(
             message,
-            'Unknown command. Available options: on/off, status, clear, speed [slow/normal/fast]',
+            'Unknown command. Valid commands: on, off, status, ignore, unignore, ignorelist',
             deleteTimeout,
             true
         );
