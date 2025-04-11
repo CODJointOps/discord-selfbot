@@ -173,6 +173,18 @@ const handleNewMessage = (message) => {
         ignoredMessages.add(message.id);
         return;
     }
+    
+    if (message.content.includes('```') && message.content.length > 100) {
+        console.log(`[AUTODELETE] Skipping command response message: ${message.id}`);
+        ignoredMessages.add(message.id);
+        return;
+    }
+    
+    if (message.scheduledForDeletion) {
+        console.log(`[AUTODELETE] Skipping message already scheduled for deletion: ${message.id}`);
+        ignoredMessages.add(message.id);
+        return;
+    }
 
     console.log(`[AUTODELETE] New message tracked: ${message.id}`);
     console.log(`[AUTODELETE] Content preview: ${message.content.slice(0, 30)}...`);

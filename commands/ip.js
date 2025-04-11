@@ -24,19 +24,43 @@ function isVpnIp(ip) {
     return false;
 }
 
+function isValidIp(ip) {
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    return ipRegex.test(ip);
+}
+
 module.exports = {
     name: 'ip',
-    description: 'Fetches IP info and checks if the IP is a VPN.',
+    description: 'Fetches IP info and checks if the IP is a VPN. Usage: .ip [ip_address]',
     async execute(message, args, deleteTimeout) {
         const { default: fetch } = await import('node-fetch');
         try {
-            const ipRes = await fetch('http://ip-api.com/json/');
-            const data = await ipRes.json();
+            let targetIp;
+            
+            if (args.length > 0) {
+                targetIp = args[0];
+                if (!isValidIp(targetIp)) {
+                    await sendCommandResponse(message, "Invalid IP address format. Please use format: x.x.x.x", deleteTimeout, true);
+                    return;
+                }
+            } else {
+                const ipRes = await fetch('http://ip-api.com/json/');
+                const data = await ipRes.json();
+                targetIp = data.query;
+            }
 
             if (!vpnRangesCache) {
                 const vpnRes = await fetch('https://raw.githubusercontent.com/X4BNet/lists_vpn/main/ipv4.txt');
                 const vpnText = await vpnRes.text();
                 vpnRangesCache = vpnText.split('\n').map(line => line.trim()).filter(line => line);
+            }
+
+            const ipRes = await fetch(`http://ip-api.com/json/${targetIp}`);
+            const data = await ipRes.json();
+
+            if (data.status === 'fail') {
+                await sendCommandResponse(message, `Error: ${data.message}`, deleteTimeout, true);
+                return;
             }
 
             const ip = data.query || "Unknown";
@@ -53,7 +77,8 @@ module.exports = {
             const as = data.as || "Unknown";
 
             const output =
-                `Hostname: ${hostname}
+                `IP: ${ip}
+Hostname: ${hostname}
 City: ${city}
 Region: ${region}
 Country: ${country}

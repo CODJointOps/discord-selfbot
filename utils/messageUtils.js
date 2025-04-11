@@ -12,6 +12,8 @@ const sendTempMessage = async (channel, content, baseDeleteDelay = 5000) => {
         const deleteDelay = getHumanizedDeleteDelay(baseDeleteDelay);
         const sentMessage = await channel.send(content);
         
+        sentMessage.scheduledForDeletion = true;
+        
         console.log(`[MESSAGE] Sending temp message in ${channel.id}, will delete in ${deleteDelay}ms`);
         
         setTimeout(() => {
